@@ -38,7 +38,7 @@ public class BookingServiceTest {
             , LocalDate.of(2024, 6, 16)
             ,4
             ,false
-            );
+    );
 
     @Spy
     private BookingRequest bookingRequest2 = new BookingRequest("2"
@@ -64,7 +64,17 @@ public class BookingServiceTest {
      */
     @Test
     void getAvailablePlaceCountTest() {
+        List<Room> availableRooms = new ArrayList<>();
+        availableRooms.add(new Room("1", 3));
+        availableRooms.add(new Room("2", 4));
+        availableRooms.add(new Room("3", 3));
 
+        when(roomService.getAvailableRooms()).thenReturn(availableRooms);
+
+        int availablePlaceCount = bookingService.getAvailablePlaceCount();
+
+        assertThat(availablePlaceCount).isEqualTo(10);
+        verify(roomService, times(1)).getAvailableRooms();
     }
 
     /**
@@ -73,10 +83,15 @@ public class BookingServiceTest {
      * y que el precio en dólares (bookingService.calculatePrice) es el que corresponde para
      * el número de noches de la reserva de bookingRequest1.
      */
-     @Test
+    @Test
     void calculatePriceTest() {
+        double price = bookingService.calculatePrice(bookingRequest1);
 
-     }
+        assertThat(price).isEqualTo(50.0 * 4 * 6);
+        verify(bookingRequest1, times(1)).getDateFrom();
+        verify(bookingRequest1, times(1)).getDateTo();
+        verify(bookingRequest1, times(1)).getGuestCount();
+    }
 
 
     /**
@@ -91,7 +106,15 @@ public class BookingServiceTest {
      */
     @Test
     void makeBookingTest1() {
+        String roomId = "101";
+        when(roomService.findAvailableRoomId(bookingRequest2)).thenReturn(roomId);
 
+        bookingService.makeBooking(bookingRequest2);
+
+        verify(paymentService).pay(bookingRequestCaptor.capture(), priceCaptor.capture());
+
+        assertThat(bookingRequestCaptor.getValue()).isEqualTo(bookingRequest2);
+        assertThat(priceCaptor.getValue()).isEqualTo(50.0 * 3 * 37);
     }
 
     /**
@@ -107,6 +130,19 @@ public class BookingServiceTest {
      */
     @Test
     void makeBookingTest2() {
+        String roomId = "101";
+        String bookingId = "Booking1";
+        when(roomService.findAvailableRoomId(bookingRequest2)).thenReturn(roomId);
+        when(bookingDAO.save(bookingRequest2)).thenReturn(bookingId);
 
+        bookingService.makeBooking(bookingRequest2);
+
+        InOrder inOrder = inOrder(roomService, mailSender);
+        inOrder.verify(roomService).bookRoom(roomIdCaptor.capture());
+        inOrder.verify(mailSender).sendBookingConfirmation(bookingIdCaptor.capture());
+
+        assertThat(roomIdCaptor.getValue()).isEqualTo(roomId);
+        assertThat(bookingIdCaptor.getValue()).isEqualTo(bookingId);
     }
 }
+
